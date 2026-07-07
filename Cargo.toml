@@ -1,0 +1,10 @@
+[package]
+name = "fast-csv-plotter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.29.1"
+egui_plot = "0.29.1"
+polars = { version = "0.41.3", features = ["lazy", "csv"] }
+rfd = "0.14.1"
