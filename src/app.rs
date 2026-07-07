@@ -43,7 +43,7 @@ pub struct CsvPlotterApp {
     y_stats: Option<ColStats>,
 
     // Cached plot data
-    plot_points: Option<PlotPoints>,
+    plot_points: Option<Vec<[f64; 2]>>,
 
     // Plot customization and performance settings
     downsample: bool,
@@ -209,7 +209,7 @@ impl CsvPlotterApp {
         self.y_stats = calculate_stats(y_series);
 
         // Map and clean up points for egui_plot
-        let points_result = (|| -> Result<PlotPoints, String> {
+        let points_result = (|| -> Result<Vec<[f64; 2]>, String> {
             let x_ca = x_series
                 .cast(&DataType::Float64)
                 .map_err(|e| e.to_string())?;
@@ -234,9 +234,9 @@ impl CsvPlotterApp {
                 for i in (0..total_len).step_by(step) {
                     downsampled.push(raw_points[i]);
                 }
-                Ok(PlotPoints::new(downsampled))
+                Ok(downsampled)
             } else {
-                Ok(PlotPoints::new(raw_points))
+                Ok(raw_points)
             }
         })();
 
@@ -486,16 +486,12 @@ impl eframe::App for CsvPlotterApp {
                             self.x_axis.as_deref().unwrap_or("")
                         );
 
-                        let line = Line::new(points.clone())
+                        let line = Line::new(PlotPoints::new(points.clone()))
                             .color(self.line_color)
                             .width(self.line_width)
                             .name(&line_name);
 
-                        let mut plot = Plot::new("csv_plot")
-                            .legend(egui_plot::Legend::default())
-                            .x_axis_label(self.x_axis.as_deref().unwrap_or("X"))
-                            .y_axis_label(self.y_axis.as_deref().unwrap_or("Y"));
-
+                        let mut target_bounds = None;
                         // Adjust plot bounds programmatically if requested
                         if self.reset_view {
                             if let (Some(x_s), Some(y_s)) = (&self.x_stats, &self.y_stats) {
@@ -506,7 +502,7 @@ impl eframe::App for CsvPlotterApp {
                                 let y_min = y_s.min - if y_margin == 0.0 { 1.0 } else { y_margin };
                                 let y_max = y_s.max + if y_margin == 0.0 { 1.0 } else { y_margin };
 
-                                plot = plot.bounds(egui_plot::PlotBounds::from_min_max(
+                                target_bounds = Some(egui_plot::PlotBounds::from_min_max(
                                     [x_min, y_min],
                                     [x_max, y_max]
                                 ));
@@ -514,7 +510,15 @@ impl eframe::App for CsvPlotterApp {
                             self.reset_view = false;
                         }
 
+                        let plot = Plot::new("csv_plot")
+                            .legend(egui_plot::Legend::default())
+                            .x_axis_label(self.x_axis.as_deref().unwrap_or("X"))
+                            .y_axis_label(self.y_axis.as_deref().unwrap_or("Y"));
+
                         plot.show(ui, |plot_ui| {
+                            if let Some(bounds) = target_bounds {
+                                plot_ui.set_plot_bounds(bounds);
+                            }
                             plot_ui.line(line);
                         });
                     } else {
@@ -543,15 +547,16 @@ impl eframe::App for CsvPlotterApp {
                         );
                         ui.add_space(20.0);
 
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("📂 Import CSV File").size(18.0),
-                                )
-                                .padding(egui::vec2(16.0, 8.0)),
-                            )
-                            .clicked()
-                        {
+                        let original_padding = ui.spacing().button_padding;
+                        ui.spacing_mut().button_padding = egui::vec2(16.0, 8.0);
+                        let import_clicked = ui
+                            .add(egui::Button::new(
+                                egui::RichText::new("📂 Import CSV File").size(18.0),
+                            ))
+                            .clicked();
+                        ui.spacing_mut().button_padding = original_padding;
+
+                        if import_clicked {
                             if let Some(path) = FileDialog::new()
                                 .add_filter("CSV Files", &["csv"])
                                 .pick_file()

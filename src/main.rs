@@ -1,4 +1,5 @@
 mod app;
+use eframe::egui;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
