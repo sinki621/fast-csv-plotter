@@ -325,7 +325,7 @@ impl eframe::App for CsvPlotterApp {
         // Main Area
         egui::CentralPanel::default().show(ctx, |ui| {
             // Render error bar if any error occurs
-            if let Some(err) = &self.error {
+            if let Some(err) = self.error.clone() {
                 ui.horizontal(|ui| {
                     ui.colored_label(egui::Color32::LIGHT_RED, format!("⚠️ Error: {}", err));
                     if ui.button("Dismiss").clicked() {
